@@ -197,26 +197,52 @@ def proxy_url(p):
 
 
 def check_proxy(p):
-    started = time.perf_counter()
-    proxies = {"http": proxy_url(p), "https": proxy_url(p)}
-    if p["protocol"] in {"socks4", "socks5"}:
-        # requests delegates SOCKS to PySocks installed by requirements.txt.
+    # SOCKS proxies are rechecked over a fresh connection because public SOCKS
+    # endpoints can pass one request and immediately fail the next one.
+    attempts = 2 if p["protocol"] in {"socks4", "socks5"} else 1
+    latencies = []
+    exit_ips = []
+
+    for attempt in range(attempts):
+        started = time.perf_counter()
         proxies = {"http": proxy_url(p), "https": proxy_url(p)}
-    try:
-        r = requests.get(IP_URL, proxies=proxies, timeout=CATALOG_TIMEOUT, headers={"User-Agent": USER_AGENT})
-        r.raise_for_status()
-        elapsed = (time.perf_counter() - started) * 1000
+        probe_url = (
+            f"{IP_URL}&_check={time.time_ns()}"
+            if "?" in IP_URL
+            else f"{IP_URL}?_check={time.time_ns()}"
+        )
+
         try:
-            exit_ip = r.json().get("ip")
+            with requests.Session() as session:
+                r = session.get(
+                    probe_url,
+                    proxies=proxies,
+                    timeout=CATALOG_TIMEOUT,
+                    headers={"User-Agent": USER_AGENT},
+                )
+                r.raise_for_status()
+
+            elapsed = (time.perf_counter() - started) * 1000
+            try:
+                exit_ip = r.json().get("ip")
+            except Exception:
+                exit_ip = r.text.strip()
+
+            if not exit_ip or len(exit_ip) > 80:
+                return None
+
+            latencies.append(elapsed)
+            exit_ips.append(exit_ip)
         except Exception:
-            exit_ip = r.text.strip()
-        if not exit_ip or len(exit_ip) > 80:
             return None
-        result = dict(p)
-        result.update({"latency_ms": round(elapsed, 1), "exit_ip": exit_ip, "verified": True})
-        return result
-    except Exception:
-        return None
+
+    result = dict(p)
+    result.update({
+        "latency_ms": round(statistics.mean(latencies), 1),
+        "exit_ip": exit_ips[-1],
+        "verified": True,
+    })
+    return result
 
 
 def speed_test(p):

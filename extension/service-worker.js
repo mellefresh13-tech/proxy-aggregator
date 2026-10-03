@@ -4,7 +4,7 @@ const IP_CHECK_URL = 'https://api.ipify.org?format=json';
 const CATALOG_CACHE_KEY = 'catalogCache';
 const CATALOG_FETCHED_AT_KEY = 'catalogFetchedAt';
 const HEALTH_ALARM = 'domikvpn-health';
-const VERIFY_TIMEOUT_MS = 7000;
+const VERIFY_TIMEOUT_MS = 9000;
 
 let activeProxy = null;
 let authAttempts = new Map();
@@ -237,6 +237,29 @@ async function connectProxy(proxy) {
   throw lastError || new Error('Connection failed');
 }
 
+async function connectProxyWithFallback(preferred) {
+  const { catalog } = await fetchCatalog();
+  const candidates = candidatesForCountry(catalog, preferred.country);
+  const ordered = [
+    preferred,
+    ...candidates.filter(proxy => !sameProxy(proxy, preferred))
+  ].slice(0, 8);
+
+  let lastError = null;
+
+  for (const candidate of ordered) {
+    try {
+      return await connectProxy(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(
+    `No working server found in ${preferred.country_name || preferred.country}`
+  );
+}
+
 async function connectCountry(code, excludeProxy = null) {
   const { catalog } = await fetchCatalog();
 
@@ -321,7 +344,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const proxy = await findProxyById(message.id);
       return {
         ok: true,
-        proxy: await connectProxy(proxy)
+        proxy: await connectProxyWithFallback(proxy)
       };
     }
 
