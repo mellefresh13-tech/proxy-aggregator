@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Proxy Aggregator",
+  "version": "0.1.0",
+  "description": "Simple country-based proxy switcher backed by the GitHub proxy catalog.",
+  "permissions": [
+    "proxy",
+    "storage",
+    "webRequest",
+    "webRequestAuthProvider"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "Proxy Aggregator",
+    "default_popup": "popup.html"
+  }
+}
