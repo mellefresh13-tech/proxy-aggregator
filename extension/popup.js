@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 
 let catalog = null;
 let active = null;
+let selectedCountry = null;
 
 function send(message) {
   return new Promise((resolve, reject) => {
@@ -20,6 +21,13 @@ function setStatus(text, error = false) {
   $('status').classList.toggle('error', error);
 }
 
+function flagForCountry(code) {
+  if (!code || code.length !== 2) return '🌐';
+  return [...code.toUpperCase()]
+    .map(char => String.fromCodePoint(127397 + char.charCodeAt(0)))
+    .join('');
+}
+
 function formatAge(iso) {
   if (!iso) return '—';
   const date = new Date(iso);
@@ -35,8 +43,108 @@ function formatAge(iso) {
   return `${Math.floor(hours / 24)} d ago`;
 }
 
+function proxiesByCountry() {
+  const groups = new Map();
+
+  for (const proxy of catalog?.proxies || []) {
+    if (!proxy.country) continue;
+
+    if (!groups.has(proxy.country)) {
+      groups.set(proxy.country, {
+        code: proxy.country,
+        name: proxy.country_name || proxy.country,
+        count: 0,
+        proxies: []
+      });
+    }
+
+    const group = groups.get(proxy.country);
+    group.count += 1;
+    group.proxies.push(proxy);
+  }
+
+  for (const group of groups.values()) {
+    group.proxies.sort((a, b) => (b.score || 0) - (a.score || 0));
+  }
+
+  return [...groups.values()].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+}
+
+function renderCountryGroups() {
+  const root = $('countries');
+  root.innerHTML = '';
+
+  const groups = proxiesByCountry();
+  $('country-count').textContent = `${groups.length} countries`;
+
+  if (!groups.length) {
+    root.innerHTML = '<div class="status">No working servers.</div>';
+    $('toggle').disabled = true;
+    return;
+  }
+
+  const openCode = selectedCountry || groups[0].code;
+  selectedCountry = groups.some(group => group.code === openCode)
+    ? openCode
+    : groups[0].code;
+
+  for (const group of groups) {
+    const details = document.createElement('details');
+    details.className = 'country-group';
+    details.open = group.code === selectedCountry;
+
+    const summary = document.createElement('summary');
+    summary.className = 'country-summary';
+    summary.innerHTML = `
+      <span class="country-name">
+        <span class="flag">${flagForCountry(group.code)}</span>
+        <strong>${group.name}</strong>
+      </span>
+      <span class="country-meta">${group.count} servers</span>
+    `;
+
+    summary.addEventListener('click', () => {
+      selectedCountry = group.code;
+      $('selected-location').textContent = group.name;
+      $('toggle').disabled = false;
+      if (!active) setStatus(`${group.name} selected · ${group.count} servers`);
+    });
+
+    const list = document.createElement('div');
+    list.className = 'server-list';
+
+    for (const proxy of group.proxies) {
+      const row = document.createElement('div');
+      row.className = 'server-row';
+
+      const speed = proxy.speed_mbps ? `${proxy.speed_mbps} Mbps` : 'speed —';
+      const ping = proxy.latency_ms ? `${proxy.latency_ms} ms` : 'ping —';
+
+      row.innerHTML = `
+        <div class="server-main">
+          <span class="server-host">${proxy.host}:${proxy.port}</span>
+          <span class="server-metrics">
+            <span>${ping}</span>
+            <span>${speed}</span>
+            <span>score ${proxy.score ?? '—'}</span>
+          </span>
+        </div>
+        <button class="server-connect" data-proxy-id="${proxy.id}">Connect</button>
+      `;
+
+      list.appendChild(row);
+    }
+
+    details.append(summary, list);
+    root.appendChild(details);
+  }
+}
+
 function renderDetails(proxy) {
   const section = $('details');
+
   if (!proxy) {
     section.hidden = true;
     return;
@@ -53,24 +161,6 @@ function renderDetails(proxy) {
   $('d-protocol').textContent = proxy.protocol || '—';
 }
 
-function renderCountries() {
-  const select = $('country');
-  select.innerHTML = '';
-
-  for (const country of catalog.countries || []) {
-    const option = document.createElement('option');
-    option.value = country.code;
-    option.textContent = `${country.name} · ${country.count}`;
-    select.appendChild(option);
-  }
-
-  $('toggle').disabled = !select.options.length;
-
-  if (!select.options.length) {
-    select.innerHTML = '<option>No working countries</option>';
-  }
-}
-
 function renderState() {
   const connected = Boolean(active);
 
@@ -78,39 +168,69 @@ function renderState() {
   $('state-dot').classList.toggle('on', connected);
   $('state-dot').title = connected ? 'Connected' : 'Disconnected';
 
-  const toggle = $('toggle');
-  toggle.disabled = false;
-  toggle.textContent = connected ? 'Disconnect' : 'Connect';
-  toggle.classList.toggle('connected', connected);
+  $('toggle').textContent = connected ? 'Disconnect' : 'Connect';
+  $('toggle').classList.toggle('connected', connected);
+  $('toggle').disabled = !selectedCountry && !connected;
 
   $('next').hidden = !connected;
   renderDetails(active);
 
   if (connected) {
+    selectedCountry = active.country;
+    $('selected-location').textContent = active.country_name || active.country;
     setStatus(`${active.country_name || active.country} · ${active.host}:${active.port}`);
-  } else {
-    setStatus(`${catalog?.count || 0} working proxies · ${catalog?.countries_count || 0} countries`);
+  } else if (selectedCountry) {
+    const group = proxiesByCountry().find(item => item.code === selectedCountry);
+    $('selected-location').textContent = group?.name || 'Choose a country';
+    setStatus(group ? `${group.name} selected · ${group.count} servers` : 'Choose a country');
   }
 }
 
-async function init() {
-  const [catalogResult, stateResult] = await Promise.all([
-    send({ type: 'catalog' }),
-    send({ type: 'state' })
-  ]);
+async function connectSelected() {
+  if (!selectedCountry) throw new Error('Choose a country first');
 
-  if (!catalogResult?.ok) throw new Error(catalogResult?.error || 'Catalog unavailable');
+  setStatus('Connecting…');
+  const result = await send({ type: 'connect', country: selectedCountry });
 
-  catalog = catalogResult.catalog;
-  active = stateResult?.ok ? stateResult.proxy : null;
+  if (!result?.ok) {
+    throw new Error(result?.error || 'Connection failed');
+  }
 
-  $('catalog-age').textContent = formatAge(catalog.generated_at);
-  $('catalog-source').textContent = catalogResult.cached ? 'cached' : 'live';
-
-  renderCountries();
-  if (active) $('country').value = active.country;
+  active = result.proxy;
   renderState();
 }
+
+async function connectProxyById(proxyId) {
+  setStatus('Connecting…');
+  const result = await send({ type: 'connectProxy', id: proxyId });
+
+  if (!result?.ok) {
+    throw new Error(result?.error || 'Connection failed');
+  }
+
+  active = result.proxy;
+  selectedCountry = active.country;
+  renderState();
+}
+
+$('countries').addEventListener('click', async event => {
+  const button = event.target.closest('.server-connect');
+  if (!button || button.disabled) return;
+
+  button.disabled = true;
+  $('toggle').disabled = true;
+  $('next').disabled = true;
+
+  try {
+    await connectProxyById(button.dataset.proxyId);
+  } catch (error) {
+    setStatus(error.message || 'Connection failed', true);
+  } finally {
+    button.disabled = false;
+    $('toggle').disabled = false;
+    $('next').disabled = !active;
+  }
+});
 
 $('toggle').addEventListener('click', async () => {
   $('toggle').disabled = true;
@@ -121,18 +241,11 @@ $('toggle').addEventListener('click', async () => {
       setStatus('Disconnecting…');
       const result = await send({ type: 'disconnect' });
       if (!result?.ok) throw new Error(result?.error || 'Disconnect failed');
+
       active = null;
       renderState();
-      setStatus('Disconnected');
     } else {
-      const country = $('country').value;
-      setStatus('Connecting…');
-      const result = await send({ type: 'connect', country });
-
-      if (!result?.ok) throw new Error(result?.error || 'Connection failed');
-
-      active = result.proxy;
-      renderState();
+      await connectSelected();
     }
   } catch (error) {
     active = null;
@@ -155,6 +268,7 @@ $('next').addEventListener('click', async () => {
     if (!result?.ok) throw new Error(result?.error || 'Next server unavailable');
 
     active = result.proxy;
+    selectedCountry = active.country;
     renderState();
     setStatus(`Connected via another ${active.country_name || active.country} server`);
   } catch (error) {
@@ -165,10 +279,25 @@ $('next').addEventListener('click', async () => {
   }
 });
 
-$('country').addEventListener('change', () => {
-  if (active) {
-    setStatus('Disconnect to change location.');
+async function init() {
+  const [catalogResult, stateResult] = await Promise.all([
+    send({ type: 'catalog' }),
+    send({ type: 'state' })
+  ]);
+
+  if (!catalogResult?.ok) {
+    throw new Error(catalogResult?.error || 'Catalog unavailable');
   }
-});
+
+  catalog = catalogResult.catalog;
+  active = stateResult?.ok ? stateResult.proxy : null;
+  selectedCountry = active?.country || catalog.countries?.[0]?.code || null;
+
+  $('catalog-age').textContent = formatAge(catalog.generated_at);
+  $('catalog-source').textContent = catalogResult.cached ? 'cached' : 'live';
+
+  renderCountryGroups();
+  renderState();
+}
 
 init().catch(error => setStatus(error.message || 'Catalog unavailable', true));

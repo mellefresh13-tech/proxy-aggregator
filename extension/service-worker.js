@@ -9,29 +9,15 @@ const VERIFY_TIMEOUT_MS = 7000;
 let activeProxy = null;
 let authAttempts = new Map();
 
-async function loadState() {
-  const state = await chrome.storage.local.get(['activeProxy']);
-  activeProxy = state.activeProxy || null;
-  await updateActionState();
-}
-
-async function saveState() {
-  await chrome.storage.local.set({ activeProxy });
-}
-
-async function updateActionState() {
-  await chrome.action.setBadgeText({ text: activeProxy ? 'ON' : '' });
-  if (activeProxy) {
-    await chrome.action.setBadgeBackgroundColor({ color: '#31c96b' });
-    await chrome.action.setTitle({
-      title: `DomikVPN · Connected · ${activeProxy.country_name || activeProxy.country}`
+async function readProxySetting() {
+  return new Promise(resolve => {
+    chrome.proxy.settings.get({ incognito: false }, details => {
+      resolve(details?.value || { mode: 'direct' });
     });
-  } else {
-    await chrome.action.setTitle({ title: 'DomikVPN · Disconnected' });
-  }
+  });
 }
 
-function proxyRules(proxy) {
+function expectedProxy(proxy) {
   const scheme = proxy.protocol === 'socks4' ? 'socks4' : 'socks5';
 
   if (proxy.protocol === 'http' || proxy.protocol === 'https') {
@@ -53,6 +39,59 @@ function proxyRules(proxy) {
   };
 }
 
+function proxySettingMatches(actual, proxy) {
+  const expected = expectedProxy(proxy);
+  const actualSingle = actual?.rules?.singleProxy;
+  const expectedSingle = expected?.rules?.singleProxy;
+
+  return Boolean(
+    actual?.mode === 'fixed_servers' &&
+    actualSingle &&
+    actualSingle.scheme === expectedSingle.scheme &&
+    actualSingle.host === expectedSingle.host &&
+    Number(actualSingle.port) === Number(expectedSingle.port)
+  );
+}
+
+async function updateActionState() {
+  await chrome.action.setBadgeText({ text: activeProxy ? 'ON' : '' });
+
+  if (activeProxy) {
+    await chrome.action.setBadgeBackgroundColor({ color: '#31c96b' });
+    await chrome.action.setTitle({
+      title: `DomikVPN · Connected · ${activeProxy.country_name || activeProxy.country}`
+    });
+  } else {
+    await chrome.action.setTitle({ title: 'DomikVPN · Disconnected' });
+  }
+}
+
+async function loadState() {
+  const state = await chrome.storage.local.get(['activeProxy']);
+  const stored = state.activeProxy || null;
+
+  if (!stored) {
+    activeProxy = null;
+    await updateActionState();
+    return;
+  }
+
+  const actual = await readProxySetting();
+
+  if (!proxySettingMatches(actual, stored)) {
+    activeProxy = null;
+    await chrome.storage.local.remove('activeProxy');
+  } else {
+    activeProxy = stored;
+  }
+
+  await updateActionState();
+}
+
+async function saveState() {
+  await chrome.storage.local.set({ activeProxy });
+}
+
 async function setDirect() {
   await chrome.proxy.settings.set({
     value: { mode: 'direct' },
@@ -67,14 +106,9 @@ async function setDirect() {
 
 async function activate(proxy) {
   await chrome.proxy.settings.set({
-    value: proxyRules(proxy),
+    value: expectedProxy(proxy),
     scope: 'regular'
   });
-
-  activeProxy = proxy;
-  authAttempts.clear();
-  await saveState();
-  await updateActionState();
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = VERIFY_TIMEOUT_MS) {
@@ -91,42 +125,44 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = VERIFY_TIMEOUT_MS
   }
 }
 
-async function fetchCatalog() {
-  try {
-    const response = await fetchWithTimeout(
-      `${CATALOG_URL}?t=${Date.now()}`,
-      { cache: 'no-store' },
-      10000
-    );
+async function refreshCatalog() {
+  const response = await fetchWithTimeout(
+    `${CATALOG_URL}?t=${Date.now()}`,
+    { cache: 'no-store' },
+    10000
+  );
 
-    if (!response.ok) {
-      throw new Error(`Catalog HTTP ${response.status}`);
-    }
-
-    const catalog = await response.json();
-
-    await chrome.storage.local.set({
-      [CATALOG_CACHE_KEY]: catalog,
-      [CATALOG_FETCHED_AT_KEY]: Date.now()
-    });
-
-    return { catalog, cached: false };
-  } catch (networkError) {
-    const state = await chrome.storage.local.get([
-      CATALOG_CACHE_KEY,
-      CATALOG_FETCHED_AT_KEY
-    ]);
-
-    if (state[CATALOG_CACHE_KEY]) {
-      return {
-        catalog: state[CATALOG_CACHE_KEY],
-        cached: true,
-        cachedAt: state[CATALOG_FETCHED_AT_KEY] || null
-      };
-    }
-
-    throw networkError;
+  if (!response.ok) {
+    throw new Error(`Catalog HTTP ${response.status}`);
   }
+
+  const catalog = await response.json();
+
+  await chrome.storage.local.set({
+    [CATALOG_CACHE_KEY]: catalog,
+    [CATALOG_FETCHED_AT_KEY]: Date.now()
+  });
+
+  return catalog;
+}
+
+async function fetchCatalog() {
+  const state = await chrome.storage.local.get([
+    CATALOG_CACHE_KEY,
+    CATALOG_FETCHED_AT_KEY
+  ]);
+
+  if (state[CATALOG_CACHE_KEY]) {
+    refreshCatalog().catch(() => {});
+    return {
+      catalog: state[CATALOG_CACHE_KEY],
+      cached: true,
+      cachedAt: state[CATALOG_FETCHED_AT_KEY] || null
+    };
+  }
+
+  const catalog = await refreshCatalog();
+  return { catalog, cached: false, cachedAt: Date.now() };
 }
 
 async function verifyConnection() {
@@ -156,9 +192,9 @@ async function verifyConnection() {
 
 function candidatesForCountry(catalog, code) {
   return (catalog.proxies || [])
-    .filter(p =>
-      p.country === code &&
-      (!p.auth || p.protocol === 'http' || p.protocol === 'https')
+    .filter(proxy =>
+      proxy.country === code &&
+      (!proxy.auth || proxy.protocol === 'http' || proxy.protocol === 'https')
     )
     .sort((a, b) => (b.score || 0) - (a.score || 0));
 }
@@ -171,6 +207,34 @@ function sameProxy(a, b) {
     a.port === b.port &&
     a.protocol === b.protocol
   );
+}
+
+async function connectProxy(proxy) {
+  if (!proxy || !proxy.host || !proxy.port) {
+    throw new Error('Invalid proxy');
+  }
+
+  let lastError = null;
+
+  try {
+    await activate(proxy);
+    const check = await verifyConnection();
+
+    activeProxy = {
+      ...proxy,
+      exit_ip_runtime: check.exitIp,
+      latency_runtime_ms: check.measuredLatencyMs
+    };
+
+    await saveState();
+    await updateActionState();
+    return activeProxy;
+  } catch (error) {
+    lastError = error;
+    await setDirect();
+  }
+
+  throw lastError || new Error('Connection failed');
 }
 
 async function connectCountry(code, excludeProxy = null) {
@@ -187,27 +251,24 @@ async function connectCountry(code, excludeProxy = null) {
 
   for (const proxy of candidates.slice(0, 8)) {
     try {
-      await activate(proxy);
-
-      const check = await verifyConnection();
-
-      activeProxy = {
-        ...proxy,
-        exit_ip_runtime: check.exitIp,
-        latency_runtime_ms: check.measuredLatencyMs
-      };
-
-      await saveState();
-      await updateActionState();
-
-      return activeProxy;
+      return await connectProxy(proxy);
     } catch (error) {
       lastError = error;
-      await setDirect();
     }
   }
 
   throw lastError || new Error('All candidate proxies failed');
+}
+
+async function findProxyById(id) {
+  const { catalog } = await fetchCatalog();
+  const proxy = (catalog.proxies || []).find(item => item.id === id);
+
+  if (!proxy) {
+    throw new Error('Server no longer exists in the catalog');
+  }
+
+  return proxy;
 }
 
 async function autoRecover() {
@@ -250,7 +311,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.type === 'connect') {
-      return { ok: true, proxy: await connectCountry(message.country) };
+      return {
+        ok: true,
+        proxy: await connectCountry(message.country)
+      };
+    }
+
+    if (message.type === 'connectProxy') {
+      const proxy = await findProxyById(message.id);
+      return {
+        ok: true,
+        proxy: await connectProxy(proxy)
+      };
     }
 
     if (message.type === 'next') {

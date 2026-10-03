@@ -21,13 +21,11 @@
 
     <section class="connection-card">
       <div class="connection-state">
-        <span id="state-label">Disconnected</span>
+        <div>
+          <span id="state-label">Disconnected</span>
+          <span id="selected-location" class="selected-location">Choose a country</span>
+        </div>
         <span id="catalog-source" class="muted"></span>
-      </div>
-
-      <div class="country-row">
-        <label for="country">Location</label>
-        <select id="country"></select>
       </div>
 
       <button id="toggle" class="primary" disabled>Connect</button>
@@ -35,6 +33,14 @@
     </section>
 
     <section id="status" class="status">Loading catalog…</section>
+
+    <section>
+      <div class="section-title">
+        <strong>Locations</strong>
+        <span id="country-count" class="muted">—</span>
+      </div>
+      <div id="countries" class="countries"></div>
+    </section>
 
     <section id="details" class="details" hidden>
       <div class="details-title">
