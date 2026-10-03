@@ -44,6 +44,7 @@ function renderCountries() {
 
 function renderButton() {
   const button = $('toggle');
+  $('next').hidden = !active;
   if (active) {
     button.textContent = 'ВЫКЛ';
     button.classList.add('on');
@@ -70,8 +71,27 @@ async function init() {
   if (!active) setStatus(`${catalog.count || 0} working proxies in ${catalog.countries_count || 0} countries`);
 }
 
+$('next').addEventListener('click', async () => {
+  $('toggle').disabled = true;
+  $('next').disabled = true;
+  try {
+    setStatus('Switching server…');
+    const result = await send({ type: 'next' });
+    if (!result.ok) throw new Error(result.error);
+    active = result.proxy;
+    renderButton();
+    setStatus(`Connected via another ${active.country_name || active.country} server`);
+  } catch (error) {
+    setStatus(error.message || 'Next server unavailable', true);
+  } finally {
+    $('toggle').disabled = false;
+    $('next').disabled = false;
+  }
+});
+
 $('toggle').addEventListener('click', async () => {
   $('toggle').disabled = true;
+  $('next').disabled = true;
   try {
     if (active) {
       const result = await send({ type: 'disconnect' });
@@ -92,6 +112,7 @@ $('toggle').addEventListener('click', async () => {
     setStatus(error.message || 'Connection failed', true);
   } finally {
     $('toggle').disabled = false;
+    $('next').disabled = false;
   }
 });
 
