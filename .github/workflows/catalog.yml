@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '7 */3 * * *'
   workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/aggregate.py'
+      - 'sources.json'
+      - '.github/workflows/catalog.yml'
 
 permissions:
   contents: write
