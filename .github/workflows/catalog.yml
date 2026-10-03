@@ -37,6 +37,16 @@ jobs:
           SPEED_LIMIT_MB: '3'
         run: python scripts/aggregate.py
 
+      - name: Upload catalog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proxy-catalog
+          path: |
+            data/servers.json
+            data/countries.json
+            data/stats.json
+          retention-days: 14
+
       - name: Commit catalog
         run: |
           git config user.name 'github-actions[bot]'
