@@ -3,32 +3,61 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Proxy Aggregator</title>
+  <title>DomikVPN</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <main>
-    <header>
-      <strong>Proxy Aggregator</strong>
-      <span id="catalog-age">Loading…</span>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">D</span>
+        <div>
+          <strong>DomikVPN</strong>
+          <span class="subtitle">Browser VPN</span>
+        </div>
+      </div>
+      <span id="state-dot" class="state-dot" title="Disconnected"></span>
     </header>
 
-    <label for="country">Country</label>
-    <select id="country"></select>
+    <section class="connection-card">
+      <div class="connection-state">
+        <span id="state-label">Disconnected</span>
+        <span id="catalog-source" class="muted"></span>
+      </div>
 
-    <button id="toggle" disabled>ВКЛ</button>
-    <button id="next" class="secondary" hidden>Следующий сервер</button>
+      <div class="country-row">
+        <label for="country">Location</label>
+        <select id="country"></select>
+      </div>
+
+      <button id="toggle" class="primary" disabled>Connect</button>
+      <button id="next" class="secondary" hidden>Next server</button>
+    </section>
 
     <section id="status" class="status">Loading catalog…</section>
 
-    <dl id="details" hidden>
-      <div><dt>Country</dt><dd id="d-country">—</dd></div>
-      <div><dt>IP</dt><dd id="d-ip">—</dd></div>
-      <div><dt>Ping</dt><dd id="d-ping">—</dd></div>
-      <div><dt>Speed</dt><dd id="d-speed">—</dd></div>
-      <div><dt>Score</dt><dd id="d-score">—</dd></div>
-      <div><dt>Protocol</dt><dd id="d-protocol">—</dd></div>
-    </dl>
+    <section id="details" class="details" hidden>
+      <div class="details-title">
+        <span>Current server</span>
+        <span id="d-score" class="score">—</span>
+      </div>
+
+      <div class="location-line">
+        <span id="d-country">—</span>
+        <span id="d-protocol">—</span>
+      </div>
+
+      <div class="metrics">
+        <div><span>IP</span><strong id="d-ip">—</strong></div>
+        <div><span>Ping</span><strong id="d-ping">—</strong></div>
+        <div><span>Speed</span><strong id="d-speed">—</strong></div>
+      </div>
+    </section>
+
+    <footer>
+      <span>Catalog</span>
+      <strong id="catalog-age">—</strong>
+    </footer>
   </main>
   <script src="popup.js"></script>
 </body>
