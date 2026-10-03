@@ -21,6 +21,8 @@ FETCH_TIMEOUT = float(os.getenv("FETCH_TIMEOUT", "25"))
 MAX_CANDIDATES = int(os.getenv("MAX_CANDIDATES", "1500"))
 CHECK_WORKERS = int(os.getenv("CHECK_WORKERS", "40"))
 SPEED_PER_COUNTRY = int(os.getenv("SPEED_PER_COUNTRY", "2"))
+SPEED_WORKERS = int(os.getenv("SPEED_WORKERS", "20"))
+SPEED_TIMEOUT = float(os.getenv("SPEED_TIMEOUT", "6"))
 SPEED_LIMIT_MB = float(os.getenv("SPEED_LIMIT_MB", "3"))
 SPEED_URL = os.getenv("SPEED_URL", "https://speed.cloudflare.com/__down?bytes=3000000")
 IP_URL = os.getenv("IP_URL", "https://api.ipify.org?format=json")
@@ -227,7 +229,7 @@ def speed_test(p):
     started = time.perf_counter()
     received = 0
     try:
-        with requests.get(SPEED_URL, proxies=proxies, timeout=max(CATALOG_TIMEOUT, 10),
+        with requests.get(SPEED_URL, proxies=proxies, timeout=SPEED_TIMEOUT,
                           headers={"User-Agent": USER_AGENT}, stream=True) as r:
             r.raise_for_status()
             limit = int(SPEED_LIMIT_MB * 1024 * 1024)
@@ -319,13 +321,25 @@ def main():
         selected.extend(remaining[:MAX_CANDIDATES - len(selected)])
     values = selected
 
+    print(f"Collected unique candidates: {len(candidates)}", flush=True)
+    print(f"Selected for verification: {len(values)}", flush=True)
+
     verified = []
+    total_checks = len(values)
+    completed_checks = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=CHECK_WORKERS) as pool:
         futures = [pool.submit(check_proxy, p) for p in values]
         for future in concurrent.futures.as_completed(futures):
+            completed_checks += 1
             result = future.result()
             if result:
                 verified.append(result)
+            if completed_checks == 1 or completed_checks % 50 == 0 or completed_checks == total_checks:
+                print(
+                    f"Proxy checks: {completed_checks}/{total_checks} "
+                    f"(verified={len(verified)})",
+                    flush=True,
+                )
 
     # If a source did not supply country metadata, keep the proxy out of the country UI
     # rather than guessing. A future enrichment stage can add country safely.
@@ -336,10 +350,34 @@ def main():
             by_country.setdefault(country, []).append(p)
 
     # Speed is measured only for the best latency/reliability candidates per country.
+    speed_jobs = []
     for country, items in by_country.items():
         items.sort(key=lambda p: (p.get("latency_ms") or 99999, -(p.get("source_uptime") or 0)))
         for p in items[:SPEED_PER_COUNTRY]:
-            p["speed_mbps"] = speed_test(p)
+            speed_jobs.append((country, p))
+
+    print(f"Speed tests scheduled: {len(speed_jobs)}", flush=True)
+    if speed_jobs:
+        speed_workers = max(1, min(SPEED_WORKERS, len(speed_jobs)))
+        completed_speed = 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=speed_workers) as pool:
+            futures = {pool.submit(speed_test, p): p for _, p in speed_jobs}
+            for future in concurrent.futures.as_completed(futures):
+                p = futures[future]
+                try:
+                    p["speed_mbps"] = future.result()
+                except Exception:
+                    p["speed_mbps"] = None
+                completed_speed += 1
+                if (
+                    completed_speed == 1
+                    or completed_speed % 10 == 0
+                    or completed_speed == len(speed_jobs)
+                ):
+                    print(
+                        f"Speed tests: {completed_speed}/{len(speed_jobs)}",
+                        flush=True,
+                    )
 
     all_verified = []
     for country, items in by_country.items():
