@@ -1,8 +1,33 @@
 {
-  "generated_at": null,
-  "candidates_unique": 0,
-  "candidates_checked": 0,
-  "verified": 0,
-  "countries": 0,
-  "sources": {}
+  "generated_at": "2026-10-03T19:46:38Z",
+  "candidates_unique": 88147,
+  "candidates_checked": 1500,
+  "verified": 239,
+  "countries": 4,
+  "sources": {
+    "hproxy": {
+      "fetched": 38030,
+      "error": null
+    },
+    "proxifly": {
+      "fetched": 45621,
+      "error": null
+    },
+    "proxyscrape": {
+      "fetched": 5120,
+      "error": null
+    },
+    "proxio": {
+      "fetched": 18538,
+      "error": null
+    },
+    "databay-http": {
+      "fetched": 6229,
+      "error": null
+    },
+    "databay-socks5": {
+      "fetched": 638,
+      "error": null
+    }
+  }
 }
