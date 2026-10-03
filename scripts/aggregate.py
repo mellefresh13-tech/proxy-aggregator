@@ -310,7 +310,7 @@ def main():
         selected.extend(items[:per_country])
         remaining.extend(items[per_country:])
 
-    # Fill the rest by source metadata quality, without country bias.
+    # Fill the rest by source metadata quality, without country bias.  # Balanced catalog selection
     remaining.extend(unknown)
     remaining.sort(key=candidate_rank, reverse=True)
     if len(selected) > MAX_CANDIDATES:
