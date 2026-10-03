@@ -1,0 +1,43 @@
+name: Build DomikVPN extension
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'extension/**'
+      - '.github/workflows/extension.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: domikvpn-extension
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate extension files
+        run: |
+          python -m json.tool extension/manifest.json >/dev/null
+          test -f extension/popup.html
+          test -f extension/popup.css
+          test -f extension/popup.js
+          test -f extension/service-worker.js
+
+      - name: Package extension
+        run: |
+          mkdir -p dist
+          cd extension
+          zip -r ../dist/DomikVPN-chrome-v0.2.0.zip .
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DomikVPN-Chrome-Extension
+          path: dist/DomikVPN-chrome-v0.2.0.zip
+          retention-days: 14
