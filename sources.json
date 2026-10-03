@@ -26,21 +26,5 @@
     "format": "json",
     "url": "https://raw.githubusercontent.com/proxio-io/proxy-list/main/all.json",
     "license_note": "Public proxy dataset; source attribution retained"
-  },
-  {
-    "id": "databay-http",
-    "name": "Databay HTTP",
-    "format": "text",
-    "protocol": "http",
-    "url": "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/http.txt",
-    "license_note": "Public proxy dataset; source attribution retained"
-  },
-  {
-    "id": "databay-socks5",
-    "name": "Databay SOCKS5",
-    "format": "text",
-    "protocol": "socks5",
-    "url": "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/socks5.txt",
-    "license_note": "Public proxy dataset; source attribution retained"
   }
 ]

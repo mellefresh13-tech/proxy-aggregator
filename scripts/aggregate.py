@@ -28,12 +28,7 @@ SPEED_URL = os.getenv("SPEED_URL", "https://speed.cloudflare.com/__down?bytes=30
 IP_URL = os.getenv("IP_URL", "https://api.ipify.org?format=json")
 USER_AGENT = "proxy-aggregator/1.0 (+https://github.com/mellefresh13-tech/proxy-aggregator)"
 
-EUROPE_PRIORITY = {
-    "PL": 1.30, "NL": 1.30, "DE": 1.25, "FR": 1.20, "BE": 1.20,
-    "CZ": 1.15, "AT": 1.15, "SE": 1.10, "DK": 1.10, "FI": 1.10,
-    "NO": 1.10, "ES": 1.05, "IT": 1.05, "PT": 1.05, "IE": 1.05,
-    "CH": 1.05, "LU": 1.05, "GB": 1.05
-}
+ALLOWED_COUNTRIES = {"PL", "DE", "NL", "FR", "GB", "US", "JP"}
 
 COUNTRY_NAMES = {
     "PL":"Poland","NL":"Netherlands","DE":"Germany","FR":"France","BE":"Belgium",
@@ -269,26 +264,30 @@ def main():
     source_stats = {}
     for source in sources:
         try:
-            items = fetch_source(source)
-            source_stats[source["id"]] = {"fetched": len(items), "error": None}
+            raw_items = fetch_source(source)
+            items = [p for p in raw_items if p and p.get("country") in ALLOWED_COUNTRIES]
+            source_stats[source["id"]] = {
+                "fetched": len(raw_items),
+                "eligible": len(items),
+                "error": None,
+            }
             for p in items:
-                if not p:
-                    continue
                 key = f"{p['protocol']}|{p['host']}|{p['port']}"
                 if key not in candidates:
                     candidates[key] = p
         except Exception as exc:
             source_stats[source["id"]] = {"fetched": 0, "error": str(exc)[:200]}
 
-    # Spread the check budget across countries first, then use the remaining
-    # budget for the strongest candidates. This prevents a large source such as
-    # HProxy from consuming the whole 1500-check budget and hiding other countries.
-    values = list(candidates.values())
-    known = [p for p in values if p.get("country")]
-    unknown = [p for p in values if not p.get("country")]
+    # Only the allowlisted countries are eligible for verification.
+    # Unknown-country proxies are dropped before check_proxy() so they cannot
+    # consume the verification budget or slow the catalog build.
+    values = [
+        p for p in candidates.values()
+        if p.get("country") in ALLOWED_COUNTRIES
+    ]
 
     by_country_candidates = {}
-    for p in known:
+    for p in values:
         by_country_candidates.setdefault(p["country"], []).append(p)
 
     def candidate_rank(p):
@@ -312,8 +311,8 @@ def main():
         selected.extend(items[:per_country])
         remaining.extend(items[per_country:])
 
-    # Fill the rest by source metadata quality, without country bias.  # Balanced catalog selection
-    remaining.extend(unknown)
+    # Fill the remaining budget by source metadata quality while staying inside
+    # the same seven-country allowlist.
     remaining.sort(key=candidate_rank, reverse=True)
     if len(selected) > MAX_CANDIDATES:
         selected = selected[:MAX_CANDIDATES]
@@ -341,8 +340,7 @@ def main():
                     flush=True,
                 )
 
-    # If a source did not supply country metadata, keep the proxy out of the country UI
-    # rather than guessing. A future enrichment stage can add country safely.
+    # All verified proxies are guaranteed to belong to the allowlist.
     by_country = {}
     for p in verified:
         country = p.get("country")

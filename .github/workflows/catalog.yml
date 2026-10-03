@@ -36,8 +36,8 @@ jobs:
 
       - name: Build catalog
         env:
-          MAX_CANDIDATES: '1500'
-          CHECK_WORKERS: '40'
+          MAX_CANDIDATES: '1200'
+          CHECK_WORKERS: '50'
           SPEED_PER_COUNTRY: '2'
           SPEED_WORKERS: '20'
           SPEED_TIMEOUT: '6'
