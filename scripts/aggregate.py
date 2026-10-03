@@ -251,11 +251,13 @@ def score(p):
     uptime = p.get("source_uptime")
     uptime_norm = min(max((uptime or 70) / 100, 0), 1)
     latency_norm = max(0, min(1, 1 - latency / 2000))
-    speed_norm = max(0, min(1, speed / 50))
+    # Speed is only measured for a small sample per country. Treat an unmeasured
+    # speed as neutral rather than as zero, otherwise most otherwise-good proxies
+    # would be unfairly penalized.
+    speed_norm = max(0, min(1, (speed / 50) if speed else 0.5))
     source_bonus = 0.03 if p.get("source_latency_ms") is not None else 0
-    country_bonus = EUROPE_PRIORITY.get(p.get("country"), 1.0)
     base = (0.50 * uptime_norm + 0.25 * latency_norm + 0.25 * speed_norm + source_bonus) * 100
-    return round(min(100, base * min(country_bonus, 1.30) / 1.30), 2)
+    return round(min(100, base), 2)
 
 
 def main():
@@ -276,14 +278,46 @@ def main():
         except Exception as exc:
             source_stats[source["id"]] = {"fetched": 0, "error": str(exc)[:200]}
 
-    # Prefer European candidates and candidates that arrived with source metadata.
+    # Spread the check budget across countries first, then use the remaining
+    # budget for the strongest candidates. This prevents a large source such as
+    # HProxy from consuming the whole 1500-check budget and hiding other countries.
     values = list(candidates.values())
-    values.sort(key=lambda p: (
-        EUROPE_PRIORITY.get(p.get("country"), 1.0),
-        1 if p.get("source_latency_ms") is not None else 0,
-        -(p.get("source_latency_ms") or 99999)
-    ), reverse=True)
-    values = values[:MAX_CANDIDATES]
+    known = [p for p in values if p.get("country")]
+    unknown = [p for p in values if not p.get("country")]
+
+    by_country_candidates = {}
+    for p in known:
+        by_country_candidates.setdefault(p["country"], []).append(p)
+
+    def candidate_rank(p):
+        return (
+            1 if p.get("source_latency_ms") is not None else 0,
+            -(p.get("source_latency_ms") or 99999),
+            1 if p.get("source_uptime") is not None else 0,
+            p.get("source_uptime") or 0
+        )
+
+    for items in by_country_candidates.values():
+        items.sort(key=candidate_rank, reverse=True)
+
+    # Give every country a chance to appear in the catalog.
+    per_country = max(1, MAX_CANDIDATES // max(1, len(by_country_candidates)))
+    selected = []
+    remaining = []
+
+    for country in sorted(by_country_candidates):
+        items = by_country_candidates[country]
+        selected.extend(items[:per_country])
+        remaining.extend(items[per_country:])
+
+    # Fill the rest by source metadata quality, without country bias.
+    remaining.extend(unknown)
+    remaining.sort(key=candidate_rank, reverse=True)
+    if len(selected) > MAX_CANDIDATES:
+        selected = selected[:MAX_CANDIDATES]
+    else:
+        selected.extend(remaining[:MAX_CANDIDATES - len(selected)])
+    values = selected
 
     verified = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=CHECK_WORKERS) as pool:
