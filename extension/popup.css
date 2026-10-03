@@ -13,3 +13,6 @@ dl { margin: 14px 0 0; border-top: 1px solid #292929; padding-top: 10px; }
 dl div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
 dt { color: #888; font-size: 11px; }
 dd { margin: 0; font-size: 11px; text-align: right; }
+
+button.secondary { margin-top: 8px; background: #151515; border-color: #444; font-weight: 600; }
+button.secondary:hover { background: #202020; }
