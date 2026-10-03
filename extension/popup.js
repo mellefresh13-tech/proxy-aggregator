@@ -28,6 +28,17 @@ function flagForCountry(code) {
     .join('');
 }
 
+function countryName(code, suppliedName) {
+  if (suppliedName && suppliedName !== code) return suppliedName;
+
+  try {
+    const name = new Intl.DisplayNames(['en'], { type: 'region' }).of(code);
+    if (name && name !== code) return name;
+  } catch {}
+
+  return code || 'Unknown';
+}
+
 function formatAge(iso) {
   if (!iso) return '—';
   const date = new Date(iso);
@@ -52,8 +63,9 @@ function proxiesByCountry() {
     if (!groups.has(proxy.country)) {
       groups.set(proxy.country, {
         code: proxy.country,
-        name: proxy.country_name || proxy.country,
+        name: countryName(proxy.country, proxy.country_name),
         count: 0,
+        bestScore: 0,
         proxies: []
       });
     }
@@ -61,84 +73,105 @@ function proxiesByCountry() {
     const group = groups.get(proxy.country);
     group.count += 1;
     group.proxies.push(proxy);
+    group.bestScore = Math.max(group.bestScore, proxy.score || 0);
   }
 
   for (const group of groups.values()) {
     group.proxies.sort((a, b) => (b.score || 0) - (a.score || 0));
   }
 
-  return [...groups.values()].sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
+  return [...groups.values()];
+}
+
+function createCountryGroup(group, rank = null, open = false) {
+  const details = document.createElement('details');
+  details.className = 'country-group';
+  details.open = open;
+
+  const summary = document.createElement('summary');
+  summary.className = 'country-summary';
+  summary.innerHTML = `
+    <span class="country-name">
+      ${rank ? `<span class="top-rank">#${rank}</span>` : ''}
+      <span class="flag">${flagForCountry(group.code)}</span>
+      <strong>${group.name}</strong>
+    </span>
+    <span class="country-meta">${group.count} servers · best ${group.bestScore || '—'}</span>
+  `;
+
+  summary.addEventListener('click', () => {
+    selectedCountry = group.code;
+    $('selected-location').textContent = group.name;
+    $('toggle').disabled = false;
+    if (!active) setStatus(`${group.name} selected · ${group.count} servers`);
+  });
+
+  const list = document.createElement('div');
+  list.className = 'server-list';
+
+  for (const proxy of group.proxies) {
+    const row = document.createElement('div');
+    row.className = 'server-row';
+
+    const speed = proxy.speed_mbps ? `${proxy.speed_mbps} Mbps` : 'speed —';
+    const ping = proxy.latency_ms ? `${proxy.latency_ms} ms` : 'ping —';
+
+    row.innerHTML = `
+      <div class="server-main">
+        <span class="server-host">${proxy.host}:${proxy.port}</span>
+        <span class="server-metrics">
+          <span>${ping}</span>
+          <span>${speed}</span>
+          <span>score ${proxy.score ?? '—'}</span>
+        </span>
+      </div>
+      <button class="server-connect" data-proxy-id="${proxy.id}">Connect</button>
+    `;
+
+    list.appendChild(row);
+  }
+
+  details.append(summary, list);
+  return details;
 }
 
 function renderCountryGroups() {
-  const root = $('countries');
-  root.innerHTML = '';
-
   const groups = proxiesByCountry();
+  const top = [...groups]
+    .sort((a, b) => (b.bestScore - a.bestScore) || a.name.localeCompare(b.name))
+    .slice(0, 3);
+
+  const topCodes = new Set(top.map(group => group.code));
+  const rest = groups
+    .filter(group => !topCodes.has(group.code))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  $('top-countries').innerHTML = '';
+  $('countries').innerHTML = '';
   $('country-count').textContent = `${groups.length} countries`;
 
   if (!groups.length) {
-    root.innerHTML = '<div class="status">No working servers.</div>';
+    $('top-countries').innerHTML = '<div class="status">No working servers.</div>';
+    $('countries').innerHTML = '';
     $('toggle').disabled = true;
     return;
   }
 
-  const openCode = selectedCountry || groups[0].code;
-  selectedCountry = groups.some(group => group.code === openCode)
-    ? openCode
-    : groups[0].code;
+  const defaultCountry = selectedCountry || top[0]?.code || rest[0]?.code;
+  selectedCountry = groups.some(group => group.code === defaultCountry)
+    ? defaultCountry
+    : top[0]?.code;
 
-  for (const group of groups) {
-    const details = document.createElement('details');
-    details.className = 'country-group';
-    details.open = group.code === selectedCountry;
+  for (const group of top) {
+    $('top-countries').appendChild(
+      createCountryGroup(group, top.indexOf(group) + 1, group.code === selectedCountry)
+    );
+  }
 
-    const summary = document.createElement('summary');
-    summary.className = 'country-summary';
-    summary.innerHTML = `
-      <span class="country-name">
-        <span class="flag">${flagForCountry(group.code)}</span>
-        <strong>${group.name}</strong>
-      </span>
-      <span class="country-meta">${group.count} servers</span>
-    `;
-
-    summary.addEventListener('click', () => {
-      selectedCountry = group.code;
-      $('selected-location').textContent = group.name;
-      $('toggle').disabled = false;
-      if (!active) setStatus(`${group.name} selected · ${group.count} servers`);
-    });
-
-    const list = document.createElement('div');
-    list.className = 'server-list';
-
-    for (const proxy of group.proxies) {
-      const row = document.createElement('div');
-      row.className = 'server-row';
-
-      const speed = proxy.speed_mbps ? `${proxy.speed_mbps} Mbps` : 'speed —';
-      const ping = proxy.latency_ms ? `${proxy.latency_ms} ms` : 'ping —';
-
-      row.innerHTML = `
-        <div class="server-main">
-          <span class="server-host">${proxy.host}:${proxy.port}</span>
-          <span class="server-metrics">
-            <span>${ping}</span>
-            <span>${speed}</span>
-            <span>score ${proxy.score ?? '—'}</span>
-          </span>
-        </div>
-        <button class="server-connect" data-proxy-id="${proxy.id}">Connect</button>
-      `;
-
-      list.appendChild(row);
-    }
-
-    details.append(summary, list);
-    root.appendChild(details);
+  for (const group of rest) {
+    $('countries').appendChild(
+      createCountryGroup(group, null, group.code === selectedCountry)
+    );
   }
 }
 
@@ -151,7 +184,7 @@ function renderDetails(proxy) {
   }
 
   section.hidden = false;
-  $('d-country').textContent = proxy.country_name || proxy.country || '—';
+  $('d-country').textContent = countryName(proxy.country, proxy.country_name);
   $('d-ip').textContent = proxy.exit_ip_runtime || proxy.exit_ip || '—';
   $('d-ping').textContent = proxy.latency_runtime_ms
     ? `${proxy.latency_runtime_ms} ms`
@@ -177,8 +210,8 @@ function renderState() {
 
   if (connected) {
     selectedCountry = active.country;
-    $('selected-location').textContent = active.country_name || active.country;
-    setStatus(`${active.country_name || active.country} · ${active.host}:${active.port}`);
+    $('selected-location').textContent = countryName(active.country, active.country_name);
+    setStatus(`${countryName(active.country, active.country_name)} · ${active.host}:${active.port}`);
   } else if (selectedCountry) {
     const group = proxiesByCountry().find(item => item.code === selectedCountry);
     $('selected-location').textContent = group?.name || 'Choose a country';
@@ -212,6 +245,25 @@ async function connectProxyById(proxyId) {
   selectedCountry = active.country;
   renderState();
 }
+
+$('top-countries').addEventListener('click', async event => {
+  const button = event.target.closest('.server-connect');
+  if (!button || button.disabled) return;
+
+  button.disabled = true;
+  $('toggle').disabled = true;
+  $('next').disabled = true;
+
+  try {
+    await connectProxyById(button.dataset.proxyId);
+  } catch (error) {
+    setStatus(error.message || 'Connection failed', true);
+  } finally {
+    button.disabled = false;
+    $('toggle').disabled = false;
+    $('next').disabled = !active;
+  }
+});
 
 $('countries').addEventListener('click', async event => {
   const button = event.target.closest('.server-connect');
@@ -270,7 +322,7 @@ $('next').addEventListener('click', async () => {
     active = result.proxy;
     selectedCountry = active.country;
     renderState();
-    setStatus(`Connected via another ${active.country_name || active.country} server`);
+    setStatus(`Connected via another ${countryName(active.country, active.country_name)} server`);
   } catch (error) {
     setStatus(error.message || 'Next server unavailable', true);
   } finally {
@@ -291,7 +343,13 @@ async function init() {
 
   catalog = catalogResult.catalog;
   active = stateResult?.ok ? stateResult.proxy : null;
-  selectedCountry = active?.country || catalog.countries?.[0]?.code || null;
+
+  const groups = proxiesByCountry();
+  const initialTop = [...groups]
+    .sort((a, b) => (b.bestScore - a.bestScore) || a.name.localeCompare(b.name))
+    .slice(0, 3);
+
+  selectedCountry = active?.country || initialTop[0]?.code || groups[0]?.code || null;
 
   $('catalog-age').textContent = formatAge(catalog.generated_at);
   $('catalog-source').textContent = catalogResult.cached ? 'cached' : 'live';

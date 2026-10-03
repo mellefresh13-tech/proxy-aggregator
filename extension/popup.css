@@ -153,7 +153,7 @@ button.secondary {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 4px 1px 7px;
+  margin: 12px 1px 7px;
 }
 
 .section-title strong {
@@ -166,12 +166,24 @@ button.secondary {
   padding-right: 3px;
 }
 
+.top-countries {
+  max-height: 260px;
+}
+
 .country-group {
   margin-bottom: 7px;
   border: 1px solid var(--line);
   border-radius: 11px;
   background: var(--panel);
   overflow: hidden;
+}
+
+.top-countries .country-group {
+  border-color: #34403a;
+}
+
+.top-countries .country-group[open] {
+  border-color: #4b6a55;
 }
 
 .country-group[open] {
@@ -201,6 +213,13 @@ button.secondary {
   width: 20px;
   text-align: center;
   font-size: 16px;
+}
+
+.top-rank {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  width: 14px;
 }
 
 .country-name strong {
