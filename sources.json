@@ -1,0 +1,46 @@
+[
+  {
+    "id": "hproxy",
+    "name": "HProxy",
+    "format": "json",
+    "url": "https://raw.githubusercontent.com/hproxy-com/free-proxy-list/main/all.json",
+    "license_note": "Public proxy dataset; source attribution retained"
+  },
+  {
+    "id": "proxifly",
+    "name": "Proxifly",
+    "format": "json",
+    "url": "https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/all/data.json",
+    "license_note": "Public proxy dataset; source attribution retained"
+  },
+  {
+    "id": "proxyscrape",
+    "name": "ProxyScrape",
+    "format": "json",
+    "url": "https://cdn.jsdelivr.net/gh/ProxyScrape/free-proxy-list@main/proxies/all/data.json",
+    "license_note": "Public proxy dataset; source attribution retained"
+  },
+  {
+    "id": "proxio",
+    "name": "Proxio",
+    "format": "json",
+    "url": "https://raw.githubusercontent.com/proxio-io/proxy-list/main/all.json",
+    "license_note": "Public proxy dataset; source attribution retained"
+  },
+  {
+    "id": "databay-http",
+    "name": "Databay HTTP",
+    "format": "text",
+    "protocol": "http",
+    "url": "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/http.txt",
+    "license_note": "Public proxy dataset; source attribution retained"
+  },
+  {
+    "id": "databay-socks5",
+    "name": "Databay SOCKS5",
+    "format": "text",
+    "protocol": "socks5",
+    "url": "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/socks5.txt",
+    "license_note": "Public proxy dataset; source attribution retained"
+  }
+]
