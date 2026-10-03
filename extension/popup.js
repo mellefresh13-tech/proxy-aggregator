@@ -91,10 +91,11 @@ function isSameProxy(proxy, other) {
     && proxy.protocol === other.protocol;
 }
 
-function createCountryGroup(group, rank = null) {
+function createCountryGroup(group, rank = null, open = false) {
   const details = document.createElement('details');
   details.className = 'country-group';
-  details.open = false;
+  details.dataset.countryCode = group.code;
+  details.open = open;
 
   const summary = document.createElement('summary');
   summary.className = 'country-summary';
@@ -143,7 +144,11 @@ function createCountryGroup(group, rank = null) {
   return details;
 }
 
-function renderCountryGroups() {
+function renderCountryGroups(preserveOpen = false) {
+  const openCodes = preserveOpen
+    ? new Set([...document.querySelectorAll('.country-group[open]')].map(group => group.dataset.countryCode))
+    : new Set();
+
   const groups = proxiesByCountry();
   const top = [...groups]
     .sort((a, b) => (b.bestScore - a.bestScore) || a.name.localeCompare(b.name))
@@ -172,13 +177,13 @@ function renderCountryGroups() {
 
   for (const group of top) {
     $('top-countries').appendChild(
-      createCountryGroup(group, top.indexOf(group) + 1)
+      createCountryGroup(group, top.indexOf(group) + 1, openCodes.has(group.code))
     );
   }
 
   for (const group of rest) {
     $('countries').appendChild(
-      createCountryGroup(group, null)
+      createCountryGroup(group, null, openCodes.has(group.code))
     );
   }
 }
@@ -238,7 +243,7 @@ async function connectSelected() {
   }
 
   active = result.proxy;
-  renderCountryGroups();
+  renderCountryGroups(true);
   renderState();
 }
 
@@ -261,7 +266,7 @@ async function disconnectActive() {
   if (!result?.ok) throw new Error(result?.error || 'Disconnect failed');
 
   active = null;
-  renderCountryGroups();
+  renderCountryGroups(true);
   renderState();
 }
 
@@ -340,7 +345,7 @@ $('next').addEventListener('click', async () => {
 
     active = result.proxy;
     selectedCountry = active.country;
-    renderCountryGroups();
+    renderCountryGroups(true);
     renderState();
     setStatus(`Connected via another ${countryName(active.country, active.country_name)} server`);
   } catch (error) {
