@@ -20,7 +20,7 @@ concurrency:
 jobs:
   aggregate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,6 +39,8 @@ jobs:
           MAX_CANDIDATES: '1500'
           CHECK_WORKERS: '40'
           SPEED_PER_COUNTRY: '2'
+          SPEED_WORKERS: '20'
+          SPEED_TIMEOUT: '6'
           SPEED_LIMIT_MB: '3'
         run: python scripts/aggregate.py
 
