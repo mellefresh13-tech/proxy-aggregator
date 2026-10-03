@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Proxy Aggregator",
-  "version": "0.1.0",
-  "description": "Simple country-based proxy switcher backed by the GitHub proxy catalog.",
+  "name": "DomikVPN",
+  "version": "0.2.0",
+  "description": "Simple browser VPN powered by a live proxy catalog.",
   "permissions": [
     "proxy",
     "storage",
     "webRequest",
-    "webRequestAuthProvider"
+    "webRequestAuthProvider",
+    "alarms"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -16,7 +17,7 @@
     "service_worker": "service-worker.js"
   },
   "action": {
-    "default_title": "Proxy Aggregator",
+    "default_title": "DomikVPN",
     "default_popup": "popup.html"
   }
 }
