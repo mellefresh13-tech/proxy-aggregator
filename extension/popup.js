@@ -83,10 +83,18 @@ function proxiesByCountry() {
   return [...groups.values()];
 }
 
-function createCountryGroup(group, rank = null, open = false) {
+function isSameProxy(proxy, other) {
+  if (!proxy || !other) return false;
+  if (proxy.id && other.id) return proxy.id === other.id;
+  return proxy.host === other.host
+    && String(proxy.port) === String(other.port)
+    && proxy.protocol === other.protocol;
+}
+
+function createCountryGroup(group, rank = null) {
   const details = document.createElement('details');
   details.className = 'country-group';
-  details.open = open;
+  details.open = false;
 
   const summary = document.createElement('summary');
   summary.className = 'country-summary';
@@ -125,7 +133,7 @@ function createCountryGroup(group, rank = null, open = false) {
           <span>score ${proxy.score ?? '—'}</span>
         </span>
       </div>
-      <button class="server-connect" data-proxy-id="${proxy.id}">Connect</button>
+      <button class="server-connect" data-proxy-id="${proxy.id}">${isSameProxy(proxy, active) ? 'Disconnect' : 'Connect'}</button>
     `;
 
     list.appendChild(row);
@@ -164,13 +172,13 @@ function renderCountryGroups() {
 
   for (const group of top) {
     $('top-countries').appendChild(
-      createCountryGroup(group, top.indexOf(group) + 1, group.code === selectedCountry)
+      createCountryGroup(group, top.indexOf(group) + 1)
     );
   }
 
   for (const group of rest) {
     $('countries').appendChild(
-      createCountryGroup(group, null, group.code === selectedCountry)
+      createCountryGroup(group, null)
     );
   }
 }
@@ -230,6 +238,7 @@ async function connectSelected() {
   }
 
   active = result.proxy;
+  renderCountryGroups();
   renderState();
 }
 
@@ -246,7 +255,33 @@ async function connectProxyById(proxyId) {
   renderState();
 }
 
-$('top-countries').addEventListener('click', async event => {
+async function disconnectActive() {
+  setStatus('Disconnecting…');
+  const result = await send({ type: 'disconnect' });
+  if (!result?.ok) throw new Error(result?.error || 'Disconnect failed');
+
+  active = null;
+  renderCountryGroups();
+  renderState();
+}
+
+async function handleServerButton(button) {
+  const proxyId = button.dataset.proxyId;
+  const proxy = catalog?.proxies?.find(item => String(item.id) === String(proxyId));
+
+  if (!proxy) throw new Error('Server not found');
+
+  if (isSameProxy(proxy, active)) {
+    await disconnectActive();
+    return;
+  }
+
+  await connectProxyById(proxyId);
+  renderCountryGroups();
+  renderState();
+}
+
+async function handleServerListClick(event) {
   const button = event.target.closest('.server-connect');
   if (!button || button.disabled) return;
 
@@ -255,34 +290,17 @@ $('top-countries').addEventListener('click', async event => {
   $('next').disabled = true;
 
   try {
-    await connectProxyById(button.dataset.proxyId);
+    await handleServerButton(button);
   } catch (error) {
     setStatus(error.message || 'Connection failed', true);
   } finally {
-    button.disabled = false;
-    $('toggle').disabled = false;
+    $('toggle').disabled = Boolean(active) ? false : !selectedCountry;
     $('next').disabled = !active;
   }
-});
+}
 
-$('countries').addEventListener('click', async event => {
-  const button = event.target.closest('.server-connect');
-  if (!button || button.disabled) return;
-
-  button.disabled = true;
-  $('toggle').disabled = true;
-  $('next').disabled = true;
-
-  try {
-    await connectProxyById(button.dataset.proxyId);
-  } catch (error) {
-    setStatus(error.message || 'Connection failed', true);
-  } finally {
-    button.disabled = false;
-    $('toggle').disabled = false;
-    $('next').disabled = !active;
-  }
-});
+$('top-countries').addEventListener('click', handleServerListClick);
+$('countries').addEventListener('click', handleServerListClick);
 
 $('toggle').addEventListener('click', async () => {
   $('toggle').disabled = true;
@@ -295,6 +313,7 @@ $('toggle').addEventListener('click', async () => {
       if (!result?.ok) throw new Error(result?.error || 'Disconnect failed');
 
       active = null;
+      renderCountryGroups();
       renderState();
     } else {
       await connectSelected();
@@ -321,6 +340,7 @@ $('next').addEventListener('click', async () => {
 
     active = result.proxy;
     selectedCountry = active.country;
+    renderCountryGroups();
     renderState();
     setStatus(`Connected via another ${countryName(active.country, active.country_name)} server`);
   } catch (error) {
