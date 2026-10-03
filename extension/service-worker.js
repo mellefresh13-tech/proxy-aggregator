@@ -55,7 +55,7 @@ async function fetchCatalog() {
 
 async function verifyConnection() {
   const started = performance.now();
-  const response = await fetch(`${IP_CHECK_URL}?t=${Date.now()}`, { cache: 'no-store' });
+  const response = await fetch(`${IP_CHECK_URL}&t=${Date.now()}`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`IP check HTTP ${response.status}`);
   const data = await response.json();
   return { exitIp: data.ip || null, measuredLatencyMs: Math.round(performance.now() - started) };
@@ -111,7 +111,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.webRequest.onAuthRequired.addListener(
   (details, callback) => {
-    if (!activeProxy || !activeProxy.auth) {
+    if (!details.isProxy || !activeProxy || !activeProxy.auth) {
       callback({});
       return;
     }
