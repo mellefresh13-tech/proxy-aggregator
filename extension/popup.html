@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Proxy Aggregator</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <strong>Proxy Aggregator</strong>
+      <span id="catalog-age">Loading…</span>
+    </header>
+
+    <label for="country">Country</label>
+    <select id="country"></select>
+
+    <button id="toggle" disabled>ВКЛ</button>
+
+    <section id="status" class="status">Loading catalog…</section>
+
+    <dl id="details" hidden>
+      <div><dt>Country</dt><dd id="d-country">—</dd></div>
+      <div><dt>IP</dt><dd id="d-ip">—</dd></div>
+      <div><dt>Ping</dt><dd id="d-ping">—</dd></div>
+      <div><dt>Speed</dt><dd id="d-speed">—</dd></div>
+      <div><dt>Score</dt><dd id="d-score">—</dd></div>
+      <div><dt>Protocol</dt><dd id="d-protocol">—</dd></div>
+    </dl>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
