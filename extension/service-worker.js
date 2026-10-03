@@ -67,10 +67,11 @@ function candidatesForCountry(catalog, code) {
     .sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 
-async function connectCountry(code) {
+async function connectCountry(code, excludeProxy = null) {
   const catalog = await fetchCatalog();
-  const candidates = candidatesForCountry(catalog, code);
-  if (!candidates.length) throw new Error('No compatible proxy in this country');
+  const candidates = candidatesForCountry(catalog, code)
+    .filter(p => !excludeProxy || !(p.host === excludeProxy.host && p.port === excludeProxy.port && p.protocol === excludeProxy.protocol));
+  if (!candidates.length) throw new Error('No other compatible proxy in this country');
 
   let lastError = null;
   for (const proxy of candidates.slice(0, 5)) {
@@ -95,6 +96,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     if (message.type === 'connect') {
       return { ok: true, proxy: await connectCountry(message.country) };
+    }
+    if (message.type === 'next') {
+      await loadState();
+      if (!activeProxy) throw new Error('Not connected');
+      return { ok: true, proxy: await connectCountry(activeProxy.country, activeProxy) };
     }
     if (message.type === 'disconnect') {
       await setDirect();
