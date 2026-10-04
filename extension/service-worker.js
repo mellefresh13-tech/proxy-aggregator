@@ -59,8 +59,8 @@ async function updateActionState() {
 
   await chrome.action.setIcon({
     path: activeProxy
-      ? { '128': 'icons/domikvpn-blue.svg' }
-      : { '128': 'icons/domikvpn-gray.svg' }
+      ? { '128': 'icons/domikvpn-blue.png' }
+      : { '128': 'icons/domikvpn-gray.png' }
   });
 
   if (activeProxy) {
