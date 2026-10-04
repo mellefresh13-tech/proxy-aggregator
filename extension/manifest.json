@@ -18,6 +18,12 @@
   },
   "action": {
     "default_title": "DomikVPN",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icons/domikvpn-gray.svg"
+    }
+  },
+  "icons": {
+    "128": "icons/domikvpn-gray.svg"
   }
 }
