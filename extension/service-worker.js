@@ -3,6 +3,7 @@ const IP_CHECK_URL = 'https://api.ipify.org?format=json';
 
 const CATALOG_CACHE_KEY = 'catalogCache';
 const CATALOG_FETCHED_AT_KEY = 'catalogFetchedAt';
+const CATALOG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const HEALTH_ALARM = 'domikvpn-health';
 const VERIFY_TIMEOUT_MS = 9000;
 
@@ -55,6 +56,12 @@ function proxySettingMatches(actual, proxy) {
 
 async function updateActionState() {
   await chrome.action.setBadgeText({ text: activeProxy ? 'ON' : '' });
+
+  await chrome.action.setIcon({
+    path: activeProxy
+      ? { '128': 'icons/domikvpn-blue.svg' }
+      : { '128': 'icons/domikvpn-gray.svg' }
+  });
 
   if (activeProxy) {
     await chrome.action.setBadgeBackgroundColor({ color: '#31c96b' });
@@ -153,16 +160,26 @@ async function fetchCatalog() {
   ]);
 
   if (state[CATALOG_CACHE_KEY]) {
-    refreshCatalog().catch(() => {});
+    const cachedAt = state[CATALOG_FETCHED_AT_KEY] || 0;
+    const isFresh = cachedAt > 0 && (Date.now() - cachedAt) < CATALOG_CACHE_TTL_MS;
+
+    if (!isFresh) {
+      refreshCatalog().catch(() => {});
+    }
+
     return {
       catalog: state[CATALOG_CACHE_KEY],
       cached: true,
-      cachedAt: state[CATALOG_FETCHED_AT_KEY] || null
+      cachedAt: cachedAt || null
     };
   }
 
-  const catalog = await refreshCatalog();
-  return { catalog, cached: false, cachedAt: Date.now() };
+  try {
+    const catalog = await refreshCatalog();
+    return { catalog, cached: false, cachedAt: Date.now() };
+  } catch (error) {
+    throw error;
+  }
 }
 
 async function verifyConnection() {
