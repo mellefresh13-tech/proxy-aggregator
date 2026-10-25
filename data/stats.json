@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-10-24T23:08:56Z",
-  "candidates_unique": 33550,
+  "generated_at": "2026-10-25T04:33:33Z",
+  "candidates_unique": 32179,
   "candidates_checked": 1200,
-  "verified": 104,
+  "verified": 121,
   "countries": 7,
   "sources": {
     "hproxy": {
-      "fetched": 39720,
-      "eligible": 24298,
+      "fetched": 39241,
+      "eligible": 23790,
       "error": null
     },
     "proxifly": {
@@ -15,8 +15,8 @@
       "error": "403 Client Error: Forbidden for url: https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/all/data.json"
     },
     "proxyscrape": {
-      "fetched": 5874,
-      "eligible": 4721,
+      "fetched": 5277,
+      "eligible": 3886,
       "error": null
     },
     "proxio": {
