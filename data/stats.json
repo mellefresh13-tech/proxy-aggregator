@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-11-05T17:21:20Z",
-  "candidates_unique": 26602,
+  "generated_at": "2026-11-05T23:36:50Z",
+  "candidates_unique": 26979,
   "candidates_checked": 1200,
-  "verified": 146,
+  "verified": 94,
   "countries": 7,
   "sources": {
     "hproxy": {
-      "fetched": 35046,
-      "eligible": 18996,
+      "fetched": 35436,
+      "eligible": 19385,
       "error": null
     },
     "proxifly": {
@@ -20,8 +20,8 @@
       "error": null
     },
     "proxio": {
-      "fetched": 16435,
-      "eligible": 5670,
+      "fetched": 16453,
+      "eligible": 5649,
       "error": null
     }
   }
