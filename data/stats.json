@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-11-20T02:17:08Z",
-  "candidates_unique": 9911,
+  "generated_at": "2026-11-20T11:28:13Z",
+  "candidates_unique": 9876,
   "candidates_checked": 1200,
-  "verified": 23,
+  "verified": 87,
   "countries": 7,
   "sources": {
     "hproxy": {
-      "fetched": 23243,
-      "eligible": 7731,
+      "fetched": 23053,
+      "eligible": 7571,
       "error": null
     },
     "proxifly": {
-      "fetched": 12163,
+      "fetched": 12125,
       "eligible": 0,
       "error": null
     },
     "proxyscrape": {
-      "fetched": 2395,
-      "eligible": 942,
+      "fetched": 2203,
+      "eligible": 1003,
       "error": null
     },
     "proxio": {
-      "fetched": 12516,
-      "eligible": 2345,
+      "fetched": 12200,
+      "eligible": 2308,
       "error": null
     }
   }
